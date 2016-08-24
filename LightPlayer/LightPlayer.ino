@@ -13,6 +13,9 @@ const uint8_t spiSpeed = SPI_FULL_SPEED;
 //------------------------------------------------------------------------------
 // File system object.
 SdFat sd;
+File infile;
+
+unsigned long startMillis;
 
 // Serial streams
 ArduinoOutStream cout(Serial);
@@ -55,36 +58,46 @@ void setup()
   cout << F("\nCard successfully initialized.\n");
   cout << endl;
 
-  if (!sd.exists("FRACTAL1.DAT")) {
-    cout << F("FRACTAL1.DAT file not found.\n");
-    return;
+  sd.ls();
+
+  nextFile();
+}
+
+void nextFile()
+{
+  if (infile.isOpen()) {
+    infile.close();
   }
 
-  File infile = sd.open("FRACTAL1.DAT");
-  if (!infile.isOpen()) {
-    cout << F("Failed to open FRACTAL1.DAT\n");
-    return;
-  }
-
-  int bytes_read = infile.read(frame, sizeof(frame));
-  unsigned long prev_millis = millis();
-
-  cout << F("\nFrame size in bytes: ") << sizeof(frame);
-  cout << F("\nStarting millis: ") << prev_millis;
-  int i = 0;
-  while (bytes_read == sizeof(frame)) {
-    ++i;
-    while (millis() - prev_millis < 50UL) {
-      // busy loop until its time to paint the lights
+  while (true) {
+    infile.openNext(sd.vwd());
+    if (infile.isOpen()) {
+      if (!infile.isHidden() && !infile.isSystem()) {
+        char buf[13];
+        infile.getName(buf, sizeof(buf));
+        cout << F("\nOpened file: ") << buf;
+        return;
+      }
+      infile.close();
+    } else {
+      sd.vwd()->rewind();
     }
-    prev_millis += 50UL;
-    LEDstrip.sendPixels(sizeof(frame) / sizeof(*frame), frame);
-    bytes_read = infile.read(frame, sizeof(frame));
   }
-  cout << F("\nFinal millis: ") << prev_millis;
-  cout << F("\nNum frames: ") << i;
 }
 
 void loop()
 {
+  int bytes_read = infile.read(frame, sizeof(frame));
+  if (bytes_read != sizeof(frame)) {
+    nextFile();
+    startMillis = millis();
+    return;
+  }
+
+  while (millis() - startMillis < 50UL) {
+    // busy loop until its time to paint the lights
+  }
+  startMillis += 50UL;
+
+  LEDstrip.sendPixels(sizeof(frame) / sizeof(*frame), frame);
 }
