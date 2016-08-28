@@ -80,6 +80,7 @@ void nextFile()
         infile.getName(buf, sizeof(buf));
         cout << F("\nOpened file: ") << buf;
 #endif
+        startMillis = millis();
         return;
       }
       infile.close();
@@ -94,7 +95,6 @@ void loop()
   int bytes_read = infile.read(frame, sizeof(frame));
   if (bytes_read != sizeof(frame)) {
     nextFile();
-    startMillis = millis();
     return;
   }
 
