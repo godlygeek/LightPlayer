@@ -2,6 +2,8 @@
 #include <SdFat.h>
 #include <FAB_LED.h>
 
+#define DEBUG 1
+
 apa106<D, 6>   LEDstrip;
 rgb frame[200];
 
@@ -73,9 +75,11 @@ void nextFile()
     infile.openNext(sd.vwd());
     if (infile.isOpen()) {
       if (!infile.isHidden() && !infile.isSystem()) {
+#ifdef DEBUG
         char buf[13];
         infile.getName(buf, sizeof(buf));
         cout << F("\nOpened file: ") << buf;
+#endif
         return;
       }
       infile.close();
