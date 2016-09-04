@@ -32,6 +32,7 @@ namespace Pressed {
   const int bc   = b|c;
   const int bd   = b|d;
   const int cd   = c|d;
+  const int all  = abcd;
 }
 
 apa106<D, 6>   LEDstrip;
@@ -108,7 +109,7 @@ void setup()
 
 void handleRfRemoteButtons()
 {
-  static int old_button_states;
+  static int old_button_states = Pressed::all;
   int button_states = PINC & B1111;
 
   if (button_states == old_button_states) {
