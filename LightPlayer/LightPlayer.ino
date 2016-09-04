@@ -65,6 +65,9 @@ void setup()
   pinMode(A2, INPUT_PULLUP);
   pinMode(A3, INPUT_PULLUP);
 
+  drawOwl(frame);
+  LEDstrip.sendPixels(sizeof(frame) / sizeof(*frame), frame);
+
   Serial.begin(9600);
 
   // Wait for USB Serial
