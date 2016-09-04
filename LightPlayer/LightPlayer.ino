@@ -2,7 +2,7 @@
 #include <SdFat.h>
 #include <FAB_LED.h>
 
-#define DEBUG 1
+#define DEBUG
 
 // ports used:
 // digital 4 - SD card chip select
@@ -35,9 +35,57 @@ namespace Pressed {
   const int all  = abcd;
 }
 
+enum {
+  NORMAL_MODE,
+  COLOR_CEILING_MODE,
+  COLOR_FLOOR_MODE,
+  VIDEO_PLAYBACK_MODE,
+  MACRO_MODE,
+  MISC_MODE,
+} Mode;
+
 apa106<D, 6>   LEDstrip;
 rgb frame[200];
 uint8_t brightness = 255;
+uint8_t negative;
+
+struct ColorIntensity
+{
+  enum { MIN = 0, MAX = 8 };
+
+  uint8_t floor = MIN;
+  uint8_t ceil = MAX;
+
+  void lowerCeil()
+  {
+    ceil = (ceil == floor ? MAX : ceil - 1);
+  }
+
+  void raiseFloor()
+  {
+    floor = (ceil == floor ? MIN : floor + 1);
+  }
+
+  void reset()
+  {
+    floor = MIN;
+    ceil = MAX;
+  }
+
+  uint8_t minBrightness()
+  {
+    return map(floor, MIN, MAX, negative * brightness, !negative * brightness);
+  }
+
+  uint8_t maxBrightness()
+  {
+    return map(ceil, MIN, MAX, negative * brightness, !negative * brightness);
+  }
+};
+
+ColorIntensity r_intensity;
+ColorIntensity g_intensity;
+ColorIntensity b_intensity;
 
 // Test with reduced SPI speed for breadboards.
 // Change spiSpeed to SPI_FULL_SPEED for better performance
@@ -107,6 +155,43 @@ void setup()
   nextFile();
 }
 
+#ifdef DEBUG
+void printSettingsIfDebug()
+{
+  Serial.print(F("\nMode: "));
+  Serial.print(Mode);
+  Serial.print(F(" Brightness: max "));
+  Serial.print(brightness);
+  Serial.print(F(" r "));
+  Serial.print(r_intensity.floor);
+  Serial.print(F("-"));
+  Serial.print(r_intensity.ceil);
+  Serial.print(F(" g "));
+  Serial.print(g_intensity.floor);
+  Serial.print(F("-"));
+  Serial.print(g_intensity.ceil);
+  Serial.print(F(" b "));
+  Serial.print(b_intensity.floor);
+  Serial.print(F("-"));
+  Serial.print(b_intensity.ceil);
+  Serial.print(F(" neg "));
+  Serial.print(negative);
+}
+#else
+inline void printSettingsIfDebug()
+{
+}
+#endif
+
+void resetDefaultSettings()
+{
+  r_intensity.reset();
+  g_intensity.reset();
+  b_intensity.reset();
+  brightness = 255;
+  negative = 0;
+}
+
 void handleRfRemoteButtons()
 {
   static int old_button_states = Pressed::all;
@@ -139,19 +224,65 @@ void handleRfRemoteButtons()
   }
 #endif
 
-  switch (button_states) {
-    case Pressed::a: {
-      brightness -= BRIGHTNESS_STEP; // overflow to 255 at zero
-#ifdef DEBUG
-      Serial.print(F("\nBrightness: "));
-      Serial.print(brightness);
-#endif
+  switch(Mode) {
+    case NORMAL_MODE: {
+      switch (button_states) {
+        case Pressed::d:
+        default: return;
+
+        case Pressed::a: {
+          brightness -= BRIGHTNESS_STEP; // overflow to 255 at zero
+        } break;
+
+        case Pressed::b: {
+          nextFile();
+        } break;
+
+        case Pressed::ab: {
+          Mode = COLOR_CEILING_MODE;
+        } break;
+
+        case Pressed::cd: {
+          Mode = COLOR_FLOOR_MODE;
+        } break;
+
+        case Pressed::bc: {
+          Mode = MISC_MODE;
+        } break;
+      }
     } break;
 
-    case Pressed::b: {
-      nextFile();
+    case COLOR_CEILING_MODE: {
+      switch (button_states) {
+        case Pressed::d: Mode = NORMAL_MODE;
+        default: return;
+        case Pressed::a: r_intensity.lowerCeil(); break;
+        case Pressed::b: g_intensity.lowerCeil(); break;
+        case Pressed::c: b_intensity.lowerCeil(); break;
+      }
+    } break;
+
+    case COLOR_FLOOR_MODE: {
+      switch (button_states) {
+        case Pressed::d: Mode = NORMAL_MODE;
+        default: return;
+        case Pressed::a: r_intensity.raiseFloor(); break;
+        case Pressed::b: g_intensity.raiseFloor(); break;
+        case Pressed::c: b_intensity.raiseFloor(); break;
+      }
+    } break;
+
+    case MISC_MODE: {
+      switch (button_states) {
+        case Pressed::d: Mode = NORMAL_MODE;
+        default: return;
+        case Pressed::a: negative = !negative; break;
+        case Pressed::b: resetDefaultSettings(); break;
+      }
     } break;
   }
+
+  printSettingsIfDebug();
 }
 
 void nextFile()
@@ -179,45 +310,43 @@ void nextFile()
   }
 }
 
+bool readFrame()
+{
+  return infile.read(frame, sizeof(frame)) == sizeof(frame);
+}
+
+void adjustFrameColors()
+{
+  const uint8_t r_min_brightness = r_intensity.minBrightness();
+  const uint8_t g_min_brightness = g_intensity.minBrightness();
+  const uint8_t b_min_brightness = b_intensity.minBrightness();
+
+  const uint8_t r_max_brightness = r_intensity.maxBrightness();
+  const uint8_t g_max_brightness = g_intensity.maxBrightness();
+  const uint8_t b_max_brightness = b_intensity.maxBrightness();
+
+  for (auto & f : frame) {
+    f.r = map(f.r, 0, 255, r_min_brightness, r_max_brightness);
+    f.g = map(f.g, 0, 255, g_min_brightness, g_max_brightness);
+    f.b = map(f.b, 0, 255, b_min_brightness, b_max_brightness);
+  }
+}
+
 void loop()
 {
   handleRfRemoteButtons();
 
-  int bytes_read = infile.read(frame, sizeof(frame));
-  if (bytes_read != sizeof(frame)) {
+  if (!readFrame()) {
     nextFile();
     return;
   }
 
   handleRfRemoteButtons();
 
-#if defined(DEBUG) && DEBUG > 1
-  Serial.print(F("\nFirst pixel before brightness scaling:\n"));
-  Serial.print(frame[0]);
-  Serial.print(F(" "));
-  Serial.print(frame[1]);
-  Serial.print(F(" "));
-  Serial.print(frame[2]);
-#endif
-
-  // Adjust frame brightness
-  for (int i = 0; i < sizeof(frame) / sizeof(*frame); ++i) {
-    frame[i].r = map(frame[i].r, 0, 255, 0, brightness);
-    frame[i].g = map(frame[i].g, 0, 255, 0, brightness);
-    frame[i].b = map(frame[i].b, 0, 255, 0, brightness);
-  }
-
-#if defined(DEBUG) && DEBUG > 1
-  Serial.print(F("\nFirst pixel after brightness scaling:\n"));
-  Serial.print(frame[0]);
-  Serial.print(F(" "));
-  Serial.print(frame[1]);
-  Serial.print(F(" "));
-  Serial.print(frame[2]);
-#endif
+  adjustFrameColors();
 
   while (millis() - startMillis < 49UL) {
-      handleRfRemoteButtons();
+    handleRfRemoteButtons();
   }
 
   while (millis() - startMillis < 50UL) {
