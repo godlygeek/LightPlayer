@@ -105,11 +105,6 @@ ColorIntensity r_intensity;
 ColorIntensity g_intensity;
 ColorIntensity b_intensity;
 
-// Test with reduced SPI speed for breadboards.
-// Change spiSpeed to SPI_FULL_SPEED for better performance
-// Use SPI_QUARTER_SPEED for even slower SPI bus speed
-const uint8_t spiSpeed = SPI_FULL_SPEED;
-
 #define BRIGHTNESS_STEP 32
 
 //------------------------------------------------------------------------------
@@ -143,7 +138,7 @@ void setup()
   }
 
   cout << F("\nInitializing SD.\n");
-  if (!sd.begin(chipSelect, spiSpeed)) {
+  if (!sd.begin(chipSelect, SPI_FULL_SPEED)) {
     if (sd.card()->errorCode()) {
       cout << F("SD initialization failed.\n");
       cout << F("errorCode: ") << hex << showbase;
