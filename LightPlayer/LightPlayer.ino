@@ -15,25 +15,24 @@
 // analog 2 - RF remote button B
 // analog 3 - RF remote button A
 
-namespace Pressed {
-  const int none = 0;
-  const int a    = 8;
-  const int b    = 4;
-  const int c    = 2;
-  const int d    = 1;
-  const int abcd = a|b|c|d;
-  const int abc  = a|b|c;
-  const int abd  = a|b|d;
-  const int ab   = a|b;
-  const int acd  = a|c|d;
-  const int ac   = a|c;
-  const int ad   = a|d;
-  const int bcd  = b|c|d;
-  const int bc   = b|c;
-  const int bd   = b|d;
-  const int cd   = c|d;
-  const int all  = abcd;
-}
+enum class Pressed : uint8_t {
+  none = 0,
+  a    = 8,
+  b    = 4,
+  c    = 2,
+  d    = 1,
+  abcd = a|b|c|d,
+  abc  = a|b|c,
+  abd  = a|b|d,
+  ab   = a|b,
+  acd  = a|c|d,
+  ac   = a|c,
+  ad   = a|d,
+  bcd  = b|c|d,
+  bc   = b|c,
+  bd   = b|d,
+  cd   = c|d,
+};
 
 enum {
   NORMAL_MODE,
@@ -43,6 +42,25 @@ enum {
   MACRO_MODE,
   MISC_MODE,
 } Mode;
+
+struct PendingOperations
+{
+  uint8_t cycle_brightness;
+  uint8_t skip_video;
+
+  uint8_t cycle_ceiling_red;
+  uint8_t cycle_ceiling_green;
+  uint8_t cycle_ceiling_blue;
+
+  uint8_t cycle_floor_red;
+  uint8_t cycle_floor_green;
+  uint8_t cycle_floor_blue;
+
+  uint8_t toggle_negative;
+  uint8_t reset_settings;
+};
+
+volatile PendingOperations GlobalPendingOperations;
 
 apa106<D, 6>   LEDstrip;
 rgb frame[200];
@@ -153,10 +171,28 @@ void setup()
   sd.ls();
 
   nextFile();
+  startMillis = millis();
+
+  PCMSK1 = B1111; // Enable interrupts for inputs A0, A1, A2, A3
+  PCIFR  |= bit(PCIF1);   // clear any outstanding interrupts
+  PCICR  |= bit(PCIE1);   // enable pin change interrupts for D8 to D13
 }
 
-#ifdef DEBUG
-void printSettingsIfDebug()
+void printPendingOperations(PendingOperations & ops)
+{
+  if (ops.cycle_brightness)    Serial.print(F("\ncycle_brightness"));
+  if (ops.skip_video)          Serial.print(F("\nskip_video"));
+  if (ops.cycle_ceiling_red)   Serial.print(F("\ncycle_ceiling_red"));
+  if (ops.cycle_ceiling_green) Serial.print(F("\ncycle_ceiling_green"));
+  if (ops.cycle_ceiling_blue)  Serial.print(F("\ncycle_ceiling_blue"));
+  if (ops.cycle_floor_red)     Serial.print(F("\ncycle_floor_red"));
+  if (ops.cycle_floor_green)   Serial.print(F("\ncycle_floor_green"));
+  if (ops.cycle_floor_blue)    Serial.print(F("\ncycle_floor_blue"));
+  if (ops.toggle_negative)     Serial.print(F("\ntoggle_negative"));
+  if (ops.reset_settings)      Serial.print(F("\nreset_settings"));
+}
+
+void printSettings()
 {
   Serial.print(F("\nMode: "));
   Serial.print(Mode);
@@ -177,11 +213,6 @@ void printSettingsIfDebug()
   Serial.print(F(" neg "));
   Serial.print(negative);
 }
-#else
-inline void printSettingsIfDebug()
-{
-}
-#endif
 
 void resetDefaultSettings()
 {
@@ -192,50 +223,55 @@ void resetDefaultSettings()
   negative = 0;
 }
 
-void handleRfRemoteButtons()
+void performPendingOperations(PendingOperations & ops)
 {
-  static int old_button_states = Pressed::all;
-  int button_states = PINC & B1111;
+#ifdef DEBUG
+  printPendingOperations(ops);
+#endif
 
-  if (button_states == old_button_states) {
-    return;
-  }
-  old_button_states = button_states;
+  if (ops.cycle_brightness)    brightness -= BRIGHTNESS_STEP;
+  if (ops.skip_video)          infile.close();
+  if (ops.cycle_ceiling_red)   r_intensity.lowerCeil();
+  if (ops.cycle_ceiling_green) g_intensity.lowerCeil();
+  if (ops.cycle_ceiling_blue)  b_intensity.lowerCeil();
+  if (ops.cycle_floor_red)     r_intensity.raiseFloor();
+  if (ops.cycle_floor_green)   g_intensity.raiseFloor();
+  if (ops.cycle_floor_blue)    b_intensity.raiseFloor();
+  if (ops.toggle_negative)     negative = !negative;
+  if (ops.reset_settings)      resetDefaultSettings();
 
 #ifdef DEBUG
-  Serial.print(F("\nPressed buttons: "));
-  switch (button_states) {
-    case Pressed::none: Serial.print(F("NONE")); break;
-    case Pressed::d:    Serial.print(F("   D")); break;
-    case Pressed::c:    Serial.print(F("  C ")); break;
-    case Pressed::cd:   Serial.print(F("  CD")); break;
-    case Pressed::b:    Serial.print(F(" B  ")); break;
-    case Pressed::bd:   Serial.print(F(" B D")); break;
-    case Pressed::bc:   Serial.print(F(" BC ")); break;
-    case Pressed::bcd:  Serial.print(F(" BCD")); break;
-    case Pressed::a:    Serial.print(F("A   ")); break;
-    case Pressed::ad:   Serial.print(F("A  D")); break;
-    case Pressed::ac:   Serial.print(F("A C ")); break;
-    case Pressed::acd:  Serial.print(F("A CD")); break;
-    case Pressed::ab:   Serial.print(F("AB  ")); break;
-    case Pressed::abd:  Serial.print(F("AB D")); break;
-    case Pressed::abc:  Serial.print(F("ABC ")); break;
-    case Pressed::abcd: Serial.print(F("ABCD")); break;
+  if (    ops.cycle_brightness
+       || ops.skip_video
+       || ops.cycle_ceiling_red
+       || ops.cycle_ceiling_green
+       || ops.cycle_ceiling_blue
+       || ops.cycle_floor_red
+       || ops.cycle_floor_green
+       || ops.cycle_floor_blue
+       || ops.toggle_negative
+       || ops.reset_settings)
+  {
+    printSettings();
   }
 #endif
+}
+
+ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
+{
+  // Atomically read pins A0-A5, mask off A4 and A5, and represent
+  // the states of A0, A1, A2, and A3 as a Pressed enum object
+  auto button_states = static_cast<Pressed>(PINC & B1111);
 
   switch(Mode) {
     case NORMAL_MODE: {
       switch (button_states) {
-        case Pressed::d:
-        default: return;
-
         case Pressed::a: {
-          brightness -= BRIGHTNESS_STEP; // overflow to 255 at zero
+          GlobalPendingOperations.cycle_brightness = 1;
         } break;
 
         case Pressed::b: {
-          nextFile();
+          GlobalPendingOperations.skip_video = 1;
         } break;
 
         case Pressed::ab: {
@@ -254,35 +290,61 @@ void handleRfRemoteButtons()
 
     case COLOR_CEILING_MODE: {
       switch (button_states) {
-        case Pressed::d: Mode = NORMAL_MODE;
-        default: return;
-        case Pressed::a: r_intensity.lowerCeil(); break;
-        case Pressed::b: g_intensity.lowerCeil(); break;
-        case Pressed::c: b_intensity.lowerCeil(); break;
+        case Pressed::d: {
+          Mode = NORMAL_MODE;
+        } break;
+
+        case Pressed::a: {
+          GlobalPendingOperations.cycle_ceiling_red = 1;
+        } break;
+
+        case Pressed::b: {
+          GlobalPendingOperations.cycle_ceiling_green = 1;
+        } break;
+
+        case Pressed::c: {
+          GlobalPendingOperations.cycle_ceiling_blue = 1;
+        } break;
+
       }
     } break;
 
     case COLOR_FLOOR_MODE: {
       switch (button_states) {
-        case Pressed::d: Mode = NORMAL_MODE;
-        default: return;
-        case Pressed::a: r_intensity.raiseFloor(); break;
-        case Pressed::b: g_intensity.raiseFloor(); break;
-        case Pressed::c: b_intensity.raiseFloor(); break;
+        case Pressed::d: {
+          Mode = NORMAL_MODE;
+        } break;
+
+        case Pressed::a: {
+          GlobalPendingOperations.cycle_floor_red = 1;
+        } break;
+
+        case Pressed::b: {
+          GlobalPendingOperations.cycle_floor_green = 1;
+        } break;
+
+        case Pressed::c: {
+          GlobalPendingOperations.cycle_floor_blue = 1;
+        } break;
       }
     } break;
 
     case MISC_MODE: {
       switch (button_states) {
-        case Pressed::d: Mode = NORMAL_MODE;
-        default: return;
-        case Pressed::a: negative = !negative; break;
-        case Pressed::b: resetDefaultSettings(); break;
+        case Pressed::d: {
+          Mode = NORMAL_MODE;
+        } break;
+
+        case Pressed::a: {
+          GlobalPendingOperations.toggle_negative = 1;
+        } break;
+
+        case Pressed::b: {
+          GlobalPendingOperations.reset_settings = 1;
+        } break;
       }
     } break;
   }
-
-  printSettingsIfDebug();
 }
 
 void nextFile()
@@ -300,7 +362,6 @@ void nextFile()
         infile.getName(buf, sizeof(buf));
         cout << F("\nOpened file: ") << buf;
 #endif
-        startMillis = millis();
         return;
       }
       infile.close();
@@ -334,20 +395,21 @@ void adjustFrameColors()
 
 void loop()
 {
-  handleRfRemoteButtons();
-
   if (!readFrame()) {
     nextFile();
+    startMillis = millis();
     return;
   }
 
-  handleRfRemoteButtons();
+  PendingOperations pending_operations;
+  noInterrupts();
+  memcpy(&pending_operations, &GlobalPendingOperations, sizeof(pending_operations));
+  memset(&GlobalPendingOperations, 0, sizeof(GlobalPendingOperations));
+  interrupts();
+
+  performPendingOperations(pending_operations);
 
   adjustFrameColors();
-
-  while (millis() - startMillis < 49UL) {
-    handleRfRemoteButtons();
-  }
 
   while (millis() - startMillis < 50UL) {
     // busy loop until its time to paint the lights
