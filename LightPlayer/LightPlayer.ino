@@ -34,14 +34,14 @@ enum class Pressed : uint8_t {
   cd   = c|d,
 };
 
-enum {
-  NORMAL_MODE,
-  COLOR_CEILING_MODE,
-  COLOR_FLOOR_MODE,
-  VIDEO_PLAYBACK_MODE,
-  MACRO_MODE,
-  MISC_MODE,
-} Mode;
+enum class Mode : uint8_t {
+  NORMAL,
+  COLOR_CEILING,
+  COLOR_FLOOR,
+  VIDEO_PLAYBACK,
+  MACRO,
+  MISC,
+} CurrentMode;
 
 struct PendingOperations
 {
@@ -195,7 +195,7 @@ void printPendingOperations(PendingOperations & ops)
 void printSettings()
 {
   Serial.print(F("\nMode: "));
-  Serial.print(Mode);
+  Serial.print((uint8_t)CurrentMode);
   Serial.print(F(" Brightness: max "));
   Serial.print(brightness);
   Serial.print(F(" r "));
@@ -263,8 +263,8 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
   // the states of A0, A1, A2, and A3 as a Pressed enum object
   auto button_states = static_cast<Pressed>(PINC & B1111);
 
-  switch(Mode) {
-    case NORMAL_MODE: {
+  switch(CurrentMode) {
+    case Mode::NORMAL: {
       switch (button_states) {
         case Pressed::a: {
           GlobalPendingOperations.cycle_brightness = 1;
@@ -275,23 +275,23 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
         } break;
 
         case Pressed::ab: {
-          Mode = COLOR_CEILING_MODE;
+          CurrentMode = Mode::COLOR_CEILING;
         } break;
 
         case Pressed::cd: {
-          Mode = COLOR_FLOOR_MODE;
+          CurrentMode = Mode::COLOR_FLOOR;
         } break;
 
         case Pressed::bc: {
-          Mode = MISC_MODE;
+          CurrentMode = Mode::MISC;
         } break;
       }
     } break;
 
-    case COLOR_CEILING_MODE: {
+    case Mode::COLOR_CEILING: {
       switch (button_states) {
         case Pressed::d: {
-          Mode = NORMAL_MODE;
+          CurrentMode = Mode::NORMAL;
         } break;
 
         case Pressed::a: {
@@ -309,10 +309,10 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
       }
     } break;
 
-    case COLOR_FLOOR_MODE: {
+    case Mode::COLOR_FLOOR: {
       switch (button_states) {
         case Pressed::d: {
-          Mode = NORMAL_MODE;
+          CurrentMode = Mode::NORMAL;
         } break;
 
         case Pressed::a: {
@@ -329,10 +329,10 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
       }
     } break;
 
-    case MISC_MODE: {
+    case Mode::MISC: {
       switch (button_states) {
         case Pressed::d: {
-          Mode = NORMAL_MODE;
+          CurrentMode = Mode::NORMAL;
         } break;
 
         case Pressed::a: {
