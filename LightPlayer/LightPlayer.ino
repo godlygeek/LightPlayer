@@ -46,7 +46,8 @@ enum class Mode : uint8_t {
 struct PendingOperations
 {
   uint8_t cycle_brightness;
-  uint8_t skip_video;
+  uint8_t next_video;
+  uint8_t prev_video;
 
   uint8_t cycle_ceiling_red;
   uint8_t cycle_ceiling_green;
@@ -55,6 +56,10 @@ struct PendingOperations
   uint8_t cycle_floor_red;
   uint8_t cycle_floor_green;
   uint8_t cycle_floor_blue;
+
+  uint8_t reduce_speed;
+  uint8_t increase_speed;
+  uint8_t toggle_pause;
 
   uint8_t toggle_negative;
   uint8_t reset_settings;
@@ -104,8 +109,11 @@ struct ColorIntensity
 ColorIntensity r_intensity;
 ColorIntensity g_intensity;
 ColorIntensity b_intensity;
+int8_t speed;
 
 #define BRIGHTNESS_STEP 32
+const int8_t MIN_SPEED = -6;
+const int8_t MAX_SPEED = 4;
 
 //------------------------------------------------------------------------------
 // File system object.
@@ -176,13 +184,17 @@ void setup()
 void printPendingOperations(PendingOperations & ops)
 {
   if (ops.cycle_brightness)    Serial.print(F("\ncycle_brightness"));
-  if (ops.skip_video)          Serial.print(F("\nskip_video"));
+  if (ops.next_video)          Serial.print(F("\nnext_video"));
+  if (ops.prev_video)          Serial.print(F("\nprev_video"));
   if (ops.cycle_ceiling_red)   Serial.print(F("\ncycle_ceiling_red"));
   if (ops.cycle_ceiling_green) Serial.print(F("\ncycle_ceiling_green"));
   if (ops.cycle_ceiling_blue)  Serial.print(F("\ncycle_ceiling_blue"));
   if (ops.cycle_floor_red)     Serial.print(F("\ncycle_floor_red"));
   if (ops.cycle_floor_green)   Serial.print(F("\ncycle_floor_green"));
   if (ops.cycle_floor_blue)    Serial.print(F("\ncycle_floor_blue"));
+  if (ops.reduce_speed)        Serial.print(F("\nreduce_speed"));
+  if (ops.increase_speed)      Serial.print(F("\nincrease_speed"));
+  if (ops.toggle_pause)        Serial.print(F("\ntoggle_pause"));
   if (ops.toggle_negative)     Serial.print(F("\ntoggle_negative"));
   if (ops.reset_settings)      Serial.print(F("\nreset_settings"));
 }
@@ -207,6 +219,8 @@ void printSettings()
   Serial.print(b_intensity.ceil);
   Serial.print(F(" neg "));
   Serial.print(negative);
+  Serial.print(F(" speed "));
+  Serial.print(speed);
 }
 
 void resetDefaultSettings()
@@ -216,6 +230,7 @@ void resetDefaultSettings()
   b_intensity.reset();
   brightness = 255;
   negative = 0;
+  speed = 0;
 }
 
 void performPendingOperations(PendingOperations & ops)
@@ -225,25 +240,33 @@ void performPendingOperations(PendingOperations & ops)
 #endif
 
   if (ops.cycle_brightness)    brightness -= BRIGHTNESS_STEP;
-  if (ops.skip_video)          infile.close();
+  if (ops.next_video)          nextFile();
+  if (ops.prev_video)          previousFile();
   if (ops.cycle_ceiling_red)   r_intensity.lowerCeil();
   if (ops.cycle_ceiling_green) g_intensity.lowerCeil();
   if (ops.cycle_ceiling_blue)  b_intensity.lowerCeil();
   if (ops.cycle_floor_red)     r_intensity.raiseFloor();
   if (ops.cycle_floor_green)   g_intensity.raiseFloor();
   if (ops.cycle_floor_blue)    b_intensity.raiseFloor();
+  if (ops.reduce_speed)        speed = max(speed-1, MIN_SPEED);
+  if (ops.increase_speed)      speed = min(speed+1, MAX_SPEED);
+  if (ops.toggle_pause)        speed = (speed == -1 ? 0 : -1);
   if (ops.toggle_negative)     negative = !negative;
   if (ops.reset_settings)      resetDefaultSettings();
 
 #ifdef DEBUG
   if (    ops.cycle_brightness
-       || ops.skip_video
+       || ops.next_video
+       || ops.prev_video
        || ops.cycle_ceiling_red
        || ops.cycle_ceiling_green
        || ops.cycle_ceiling_blue
        || ops.cycle_floor_red
        || ops.cycle_floor_green
        || ops.cycle_floor_blue
+       || ops.reduce_speed
+       || ops.increase_speed
+       || ops.toggle_pause
        || ops.toggle_negative
        || ops.reset_settings)
   {
@@ -266,7 +289,7 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
         } break;
 
         case Pressed::b: {
-          GlobalPendingOperations.skip_video = 1;
+          GlobalPendingOperations.next_video = 1;
         } break;
 
         case Pressed::ab: {
@@ -275,6 +298,10 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
         case Pressed::cd: {
           CurrentMode = Mode::COLOR_FLOOR;
+        } break;
+
+        case Pressed::ad: {
+          CurrentMode = Mode::VIDEO_PLAYBACK;
         } break;
 
         case Pressed::bc: {
@@ -324,6 +351,34 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
       }
     } break;
 
+    case Mode::VIDEO_PLAYBACK: {
+      switch (button_states) {
+        case Pressed::d: {
+          CurrentMode = Mode::NORMAL;
+        } break;
+
+        case Pressed::a: {
+          GlobalPendingOperations.reduce_speed = 1;
+        } break;
+
+        case Pressed::b: {
+          GlobalPendingOperations.increase_speed = 1;
+        } break;
+
+        case Pressed::c: {
+          GlobalPendingOperations.toggle_pause = 1;
+        } break;
+
+        case Pressed::ac: {
+          GlobalPendingOperations.prev_video = 1;
+        } break;
+
+        case Pressed::bd: {
+          GlobalPendingOperations.next_video = 1;
+        } break;
+      }
+    } break;
+
     case Mode::MISC: {
       switch (button_states) {
         case Pressed::d: {
@@ -366,8 +421,54 @@ void nextFile()
   }
 }
 
+bool previousFile() {
+  if (infile.isOpen()) {
+    infile.close();
+  }
+
+  // dir size is 32.
+  uint16_t index = sd.vwd()->curPosition()/32;
+  if (index < 2) return false;
+  // position to possible previous file location.
+  index -= 2;
+
+  do {
+    infile.open(sd.vwd(), index, O_READ);
+
+    if (infile.isOpen()) {
+      if (!infile.isHidden() && !infile.isSystem()) {
+#ifdef DEBUG
+        char buf[13];
+        infile.getName(buf, sizeof(buf));
+        cout << F("\nOpened prev file: ") << buf;
+#endif
+        return true;
+      }
+      infile.close();
+    } else {
+      return false;
+    }
+  } while (index-- > 0);
+
+  return false;
+}
+
 bool readFrame()
 {
+  int32_t seek_offset = (int32_t)speed * sizeof(frame);
+  if (speed < 0 && infile.curPosition() < -seek_offset) {
+    // Going backwards, and reached the start of this file.
+    if (!previousFile()) {
+      // No more files.  Restart from the first at normal speed.
+      speed = 0;
+      return false;
+    }
+    // Successfully opened previous file - start from the end.
+    infile.seekEnd();
+  }
+  if (!infile.seekCur(seek_offset)) {
+    return false;
+  }
   return infile.read(frame, sizeof(frame)) == sizeof(frame);
 }
 
