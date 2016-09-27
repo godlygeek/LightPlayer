@@ -201,9 +201,7 @@ void printPendingOperations(PendingOperations & ops)
 
 void printSettings()
 {
-  Serial.print(F("\nMode: "));
-  Serial.print((uint8_t)CurrentMode);
-  Serial.print(F(" Brightness: max "));
+  Serial.print(F("\nBrightness: max "));
   Serial.print(brightness);
   Serial.print(F(" r "));
   Serial.print(r_intensity.floor);
