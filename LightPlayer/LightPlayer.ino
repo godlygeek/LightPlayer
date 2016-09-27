@@ -63,6 +63,8 @@ struct PendingOperations
 
   uint8_t toggle_negative;
   uint8_t reset_settings;
+
+  uint8_t toggle_frame_len;
 };
 
 volatile PendingOperations GlobalPendingOperations;
@@ -109,11 +111,15 @@ struct ColorIntensity
 ColorIntensity r_intensity;
 ColorIntensity g_intensity;
 ColorIntensity b_intensity;
-int8_t speed;
-
 #define BRIGHTNESS_STEP 32
-const int8_t MIN_SPEED = -6;
-const int8_t MAX_SPEED = 4;
+
+int8_t speed;
+const int8_t MIN_SPEED = -6;     // Playing backward at 5x normal rate
+const int8_t MAX_SPEED = 4;      // Playing forward at 5x normal rate
+
+int8_t frame_len;
+const int8_t MIN_FRAME_LEN = -1; // Each frame lasts 0.5x normal time (25ms shorter)
+const int8_t MAX_FRAME_LEN = 4;  // Each frame lasts 3x normal time (100ms longer)
 
 //------------------------------------------------------------------------------
 // File system object.
@@ -197,6 +203,7 @@ void printPendingOperations(PendingOperations & ops)
   if (ops.toggle_pause)        Serial.print(F("\ntoggle_pause"));
   if (ops.toggle_negative)     Serial.print(F("\ntoggle_negative"));
   if (ops.reset_settings)      Serial.print(F("\nreset_settings"));
+  if (ops.toggle_frame_len)    Serial.print(F("\ntoggle_frame_len"));
 }
 
 void printSettings()
@@ -219,6 +226,8 @@ void printSettings()
   Serial.print(negative);
   Serial.print(F(" speed "));
   Serial.print(speed);
+  Serial.print(F(" frame_len "));
+  Serial.print(frame_len);
 }
 
 void resetDefaultSettings()
@@ -229,6 +238,7 @@ void resetDefaultSettings()
   brightness = 255;
   negative = 0;
   speed = 0;
+  frame_len = 0;
 }
 
 void performPendingOperations(PendingOperations & ops)
@@ -251,6 +261,7 @@ void performPendingOperations(PendingOperations & ops)
   if (ops.toggle_pause)        speed = (speed == -1 ? 0 : -1);
   if (ops.toggle_negative)     negative = !negative;
   if (ops.reset_settings)      resetDefaultSettings();
+  if (ops.toggle_frame_len)    frame_len = (frame_len == MAX_FRAME_LEN ? MIN_FRAME_LEN : frame_len+1);
 
 #ifdef DEBUG
   if (    ops.cycle_brightness
@@ -266,7 +277,8 @@ void performPendingOperations(PendingOperations & ops)
        || ops.increase_speed
        || ops.toggle_pause
        || ops.toggle_negative
-       || ops.reset_settings)
+       || ops.reset_settings
+       || ops.toggle_frame_len)
   {
     printSettings();
   }
@@ -300,6 +312,10 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
         case Pressed::ad: {
           CurrentMode = Mode::VIDEO_PLAYBACK;
+        } break;
+
+        case Pressed::c: {
+          CurrentMode = Mode::MACRO;
         } break;
 
         case Pressed::bc: {
@@ -389,6 +405,35 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
         case Pressed::b: {
           GlobalPendingOperations.reset_settings = 1;
+        } break;
+      }
+    } break;
+
+    case Mode::MACRO: {
+      if (button_states == Pressed::none) {
+        break;
+      }
+
+      static Pressed MacroButtons[3];
+      static int8_t MacroButtonCount = 0;
+
+      MacroButtons[MacroButtonCount++] = button_states;
+      if ((MacroButtonCount %= 3) != 0) {
+        break;
+      }
+
+      CurrentMode = Mode::NORMAL;
+      switch (MacroButtons[0]) {
+        case Pressed::c: {
+          switch (MacroButtons[1]) {
+            case Pressed::c: {
+              switch (MacroButtons[2]) {
+                case Pressed::c: {
+                  GlobalPendingOperations.toggle_frame_len = 1;
+                } break;
+              }
+            } break;
+          }
         } break;
       }
     } break;
@@ -505,10 +550,11 @@ void loop()
 
   adjustFrameColors();
 
-  while (millis() - startMillis < 50UL) {
+  unsigned long frame_time = 50 + frame_len * 25UL;
+  while (millis() - startMillis < frame_time) {
     // busy loop until its time to paint the lights
   }
-  startMillis += 50UL;
+  startMillis += frame_time;
 
   LEDstrip.sendPixels(sizeof(frame) / sizeof(*frame), frame);
 }
