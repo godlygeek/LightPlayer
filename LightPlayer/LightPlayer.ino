@@ -421,36 +421,40 @@ void nextFile()
   }
 }
 
-bool previousFile() {
+void previousFile()
+{
   if (infile.isOpen()) {
     infile.close();
   }
 
-  // dir size is 32.
-  uint16_t index = sd.vwd()->curPosition()/32;
-  if (index < 2) return false;
-  // position to possible previous file location.
-  index -= 2;
-
-  do {
-    infile.open(sd.vwd(), index, O_READ);
-
-    if (infile.isOpen()) {
-      if (!infile.isHidden() && !infile.isSystem()) {
-#ifdef DEBUG
-        char buf[13];
-        infile.getName(buf, sizeof(buf));
-        cout << F("\nOpened prev file: ") << buf;
-#endif
-        return true;
-      }
-      infile.close();
-    } else {
-      return false;
+  while (true) {
+    // dir size is 32.
+    uint16_t index = sd.vwd()->curPosition()/32;
+    if (index < 2) {
+      // Advance to past last file of directory.
+      dir_t dir;
+      while (sd.vwd()->readDir(&dir) > 0);
+      continue;
     }
-  } while (index-- > 0);
+    // position to possible previous file location.
+    index -= 2;
 
-  return false;
+    do {
+      infile.open(sd.vwd(), index, O_READ);
+
+      if (infile.isOpen()) {
+        if (!infile.isHidden() && !infile.isSystem()) {
+#ifdef DEBUG
+          char buf[13];
+          infile.getName(buf, sizeof(buf));
+          cout << F("\nOpened prev file: ") << buf;
+#endif
+          return;
+        }
+        infile.close();
+      }
+    } while (index-- > 0);
+  }
 }
 
 bool readFrame()
@@ -458,11 +462,7 @@ bool readFrame()
   int32_t seek_offset = (int32_t)speed * sizeof(frame);
   if (speed < 0 && infile.curPosition() < -seek_offset) {
     // Going backwards, and reached the start of this file.
-    if (!previousFile()) {
-      // No more files.  Restart from the first at normal speed.
-      speed = 0;
-      return false;
-    }
+    previousFile();
     // Successfully opened previous file - start from the end.
     infile.seekEnd();
   }
