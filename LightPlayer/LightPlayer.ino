@@ -41,6 +41,7 @@ enum class Mode : uint8_t {
   VIDEO_PLAYBACK,
   MACRO,
   MISC,
+  ROOT_DIR_ON_RELEASE,
 } CurrentMode;
 
 struct PendingOperations
@@ -124,7 +125,15 @@ const int8_t MAX_FRAME_LEN = 4;  // Each frame lasts 3x normal time (100ms longe
 //------------------------------------------------------------------------------
 // File system object.
 SdFat sd;
-File infile;
+
+FatFile root_dir;
+File root_file;
+
+FatFile rainbows_dir;
+File rainbows_file;
+
+FatFile *curr_dir = &root_dir;
+File *infile = &root_file;
 
 unsigned long startMillis;
 
@@ -178,6 +187,11 @@ void setup()
   cout << endl;
 
   sd.ls();
+
+  root_dir.openRoot(&sd);
+  rainbows_dir.open(&root_dir, "rainbows", O_READ);
+  Serial.println(F("rainbows:"));
+  rainbows_dir.ls();
 
   nextFile();
   startMillis = millis();
@@ -423,13 +437,52 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
       }
 
       CurrentMode = Mode::NORMAL;
+
       switch (MacroButtons[0]) {
         case Pressed::c: {
           switch (MacroButtons[1]) {
+            case Pressed::a: {
+              switch (MacroButtons[2]) {
+                case Pressed::a: {
+                  // caa - permanent switch to root directory
+                  if (root_dir.isOpen()) {
+                    curr_dir = &root_dir;
+                    infile = &root_file;
+                  }
+                } break;
+
+                case Pressed::b: {
+                  // cab - permanent switch to rainbows directory
+                  if (rainbows_dir.isOpen()) {
+                    curr_dir = &rainbows_dir;
+                    infile = &rainbows_file;
+                  }
+                } break;
+              }
+            } break;
+
             case Pressed::c: {
               switch (MacroButtons[2]) {
                 case Pressed::c: {
+                  // ccc - toggle frame len
                   GlobalPendingOperations.toggle_frame_len = 1;
+                } break;
+              }
+            } break;
+          }
+        } break;
+
+        case Pressed::d: {
+          switch (MacroButtons[1]) {
+            case Pressed::a: {
+              switch (MacroButtons[2]) {
+                case Pressed::b: {
+                  // dab - temporary switch to rainbows directory
+                  if (rainbows_dir.isOpen()) {
+                    curr_dir = &rainbows_dir;
+                    infile = &rainbows_file;
+                    CurrentMode = Mode::ROOT_DIR_ON_RELEASE;
+                  }
                 } break;
               }
             } break;
@@ -437,64 +490,72 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
         } break;
       }
     } break;
+
+    case Mode::ROOT_DIR_ON_RELEASE: {
+      if (button_states == Pressed::none) {
+        curr_dir = &root_dir;
+        infile = &root_file;
+        CurrentMode = Mode::NORMAL;
+      }
+    } break;
   }
 }
 
 void nextFile()
 {
-  if (infile.isOpen()) {
-    infile.close();
+  if (infile->isOpen()) {
+    infile->close();
   }
 
   while (true) {
-    infile.openNext(sd.vwd());
-    if (infile.isOpen()) {
-      if (!infile.isHidden() && !infile.isSystem()) {
+    infile->openNext(curr_dir);
+    if (infile->isOpen()) {
+      if (!infile->isDir() && !infile->isHidden() && !infile->isSystem()) {
 #ifdef DEBUG
         char buf[13];
-        infile.getName(buf, sizeof(buf));
+        infile->getName(buf, sizeof(buf));
         cout << F("\nOpened file: ") << buf;
 #endif
         return;
       }
-      infile.close();
+      infile->close();
     } else {
-      sd.vwd()->rewind();
+      curr_dir->rewind();
     }
   }
 }
 
 void previousFile()
 {
-  if (infile.isOpen()) {
-    infile.close();
+  if (infile->isOpen()) {
+    infile->close();
   }
 
   while (true) {
     // dir size is 32.
-    uint16_t index = sd.vwd()->curPosition()/32;
+    uint16_t index = curr_dir->curPosition()/32;
     if (index < 2) {
       // Advance to past last file of directory.
       dir_t dir;
-      while (sd.vwd()->readDir(&dir) > 0);
+      while (curr_dir->readDir(&dir) > 0);
       continue;
     }
     // position to possible previous file location.
     index -= 2;
 
     do {
-      infile.open(sd.vwd(), index, O_READ);
+      infile->open(curr_dir, index, O_READ);
 
-      if (infile.isOpen()) {
-        if (!infile.isHidden() && !infile.isSystem()) {
+      if (infile->isOpen()) {
+        if (!infile->isDir() && !infile->isHidden() && !infile->isSystem()) {
 #ifdef DEBUG
           char buf[13];
-          infile.getName(buf, sizeof(buf));
+          infile->getName(buf, sizeof(buf));
           cout << F("\nOpened prev file: ") << buf;
 #endif
           return;
         }
-        infile.close();
+        infile->close();
       }
     } while (index-- > 0);
   }
@@ -503,16 +564,16 @@ void previousFile()
 bool readFrame()
 {
   int32_t seek_offset = (int32_t)speed * sizeof(frame);
-  if (speed < 0 && infile.curPosition() < -seek_offset) {
+  if (speed < 0 && infile->curPosition() < -seek_offset) {
     // Going backwards, and reached the start of this file.
     previousFile();
     // Successfully opened previous file - start from the end.
-    infile.seekEnd();
+    infile->seekEnd();
   }
-  if (!infile.seekCur(seek_offset)) {
+  if (!infile->seekCur(seek_offset)) {
     return false;
   }
-  return infile.read(frame, sizeof(frame)) == sizeof(frame);
+  return infile->read(frame, sizeof(frame)) == sizeof(frame);
 }
 
 void adjustFrameColors()
