@@ -189,7 +189,9 @@ void setup()
   sd.ls();
 
   root_dir.openRoot(&sd);
-  rainbows_dir.open(&root_dir, "rainbows", O_READ);
+  char rainbows_dir_name[9];
+  strcpy_P(rainbows_dir_name, PSTR("rainbows"));
+  rainbows_dir.open(&root_dir, rainbows_dir_name, O_READ);
   Serial.println(F("rainbows:"));
   rainbows_dir.ls();
 
