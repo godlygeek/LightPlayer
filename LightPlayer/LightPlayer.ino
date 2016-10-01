@@ -61,6 +61,7 @@ struct PendingOperations
   uint8_t reduce_speed;
   uint8_t increase_speed;
   uint8_t toggle_pause;
+  uint8_t skip_forward;
 
   uint8_t toggle_negative;
   uint8_t reset_settings;
@@ -121,6 +122,10 @@ const int8_t MAX_SPEED = 4;      // Playing forward at 5x normal rate
 int8_t frame_len;
 const int8_t MIN_FRAME_LEN = -1; // Each frame lasts 0.5x normal time (25ms shorter)
 const int8_t MAX_FRAME_LEN = 4;  // Each frame lasts 3x normal time (100ms longer)
+
+const int SKIP_SECONDS = 60;
+const int FPS = 20;
+const int32_t SKIP_BYTES = int32_t(sizeof(frame)) * FPS * SKIP_SECONDS;
 
 //------------------------------------------------------------------------------
 // File system object.
@@ -217,6 +222,7 @@ void printPendingOperations(PendingOperations & ops)
   if (ops.reduce_speed)        Serial.print(F("\nreduce_speed"));
   if (ops.increase_speed)      Serial.print(F("\nincrease_speed"));
   if (ops.toggle_pause)        Serial.print(F("\ntoggle_pause"));
+  if (ops.skip_forward)        Serial.print(F("\nskip_forward"));
   if (ops.toggle_negative)     Serial.print(F("\ntoggle_negative"));
   if (ops.reset_settings)      Serial.print(F("\nreset_settings"));
   if (ops.toggle_frame_len)    Serial.print(F("\ntoggle_frame_len"));
@@ -275,6 +281,7 @@ void performPendingOperations(PendingOperations & ops)
   if (ops.reduce_speed)        speed = max(speed-1, MIN_SPEED);
   if (ops.increase_speed)      speed = min(speed+1, MAX_SPEED);
   if (ops.toggle_pause)        speed = (speed == -1 ? 0 : -1);
+  if (ops.skip_forward)        infile->seekCur(min(((FatFile*)infile)->available(), SKIP_BYTES));
   if (ops.toggle_negative)     negative = !negative;
   if (ops.reset_settings)      resetDefaultSettings();
   if (ops.toggle_frame_len)    frame_len = (frame_len == MAX_FRAME_LEN ? MIN_FRAME_LEN : frame_len+1);
@@ -292,6 +299,7 @@ void performPendingOperations(PendingOperations & ops)
        || ops.reduce_speed
        || ops.increase_speed
        || ops.toggle_pause
+       || ops.skip_forward
        || ops.toggle_negative
        || ops.reset_settings
        || ops.toggle_frame_len)
@@ -405,6 +413,10 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
         case Pressed::bd: {
           GlobalPendingOperations.next_video = 1;
+        } break;
+
+        case Pressed::abcd: {
+          GlobalPendingOperations.skip_forward = 1;
         } break;
       }
     } break;
