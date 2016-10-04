@@ -58,6 +58,10 @@ struct PendingOperations
   uint8_t cycle_floor_green;
   uint8_t cycle_floor_blue;
 
+  uint8_t twinkle_red;
+  uint8_t twinkle_green;
+  uint8_t twinkle_blue;
+
   uint8_t reduce_speed;
   uint8_t increase_speed;
   uint8_t toggle_pause;
@@ -126,6 +130,8 @@ const int8_t MAX_FRAME_LEN = 4;  // Each frame lasts 3x normal time (100ms longe
 const int SKIP_SECONDS = 60;
 const int FPS = 20;
 const int32_t SKIP_BYTES = int32_t(sizeof(frame)) * FPS * SKIP_SECONDS;
+
+const int TWINKLE_AMOUNT = 2;
 
 //------------------------------------------------------------------------------
 // File system object.
@@ -219,6 +225,9 @@ void printPendingOperations(PendingOperations & ops)
   if (ops.cycle_floor_red)     Serial.print(F("\ncycle_floor_red"));
   if (ops.cycle_floor_green)   Serial.print(F("\ncycle_floor_green"));
   if (ops.cycle_floor_blue)    Serial.print(F("\ncycle_floor_blue"));
+  if (ops.twinkle_red)         Serial.print(F("\ntwinkle_red"));
+  if (ops.twinkle_green)       Serial.print(F("\ntwinkle_green"));
+  if (ops.twinkle_blue)        Serial.print(F("\ntwinkle_blue"));
   if (ops.reduce_speed)        Serial.print(F("\nreduce_speed"));
   if (ops.increase_speed)      Serial.print(F("\nincrease_speed"));
   if (ops.toggle_pause)        Serial.print(F("\ntoggle_pause"));
@@ -263,6 +272,18 @@ void resetDefaultSettings()
   frame_len = 0;
 }
 
+void twinkleMode(ColorIntensity & high)
+{
+  r_intensity.floor = ColorIntensity::MIN;
+  g_intensity.floor = ColorIntensity::MIN;
+  b_intensity.floor = ColorIntensity::MIN;
+  r_intensity.ceil = ColorIntensity::MIN + TWINKLE_AMOUNT;
+  g_intensity.ceil = ColorIntensity::MIN + TWINKLE_AMOUNT;
+  b_intensity.ceil = ColorIntensity::MIN + TWINKLE_AMOUNT;
+  high.floor = high.ceil;
+  high.ceil = ColorIntensity::MAX;
+}
+
 void performPendingOperations(PendingOperations & ops)
 {
 #ifdef DEBUG
@@ -278,6 +299,9 @@ void performPendingOperations(PendingOperations & ops)
   if (ops.cycle_floor_red)     r_intensity.raiseFloor();
   if (ops.cycle_floor_green)   g_intensity.raiseFloor();
   if (ops.cycle_floor_blue)    b_intensity.raiseFloor();
+  if (ops.twinkle_red)         twinkleMode(r_intensity);
+  if (ops.twinkle_green)       twinkleMode(g_intensity);
+  if (ops.twinkle_blue)        twinkleMode(b_intensity);
   if (ops.reduce_speed)        speed = max(speed-1, MIN_SPEED);
   if (ops.increase_speed)      speed = min(speed+1, MAX_SPEED);
   if (ops.toggle_pause)        speed = (speed == -1 ? 0 : -1);
@@ -296,6 +320,9 @@ void performPendingOperations(PendingOperations & ops)
        || ops.cycle_floor_red
        || ops.cycle_floor_green
        || ops.cycle_floor_blue
+       || ops.twinkle_red
+       || ops.twinkle_green
+       || ops.twinkle_blue
        || ops.reduce_speed
        || ops.increase_speed
        || ops.toggle_pause
@@ -433,6 +460,18 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
         case Pressed::b: {
           GlobalPendingOperations.reset_settings = 1;
+        } break;
+
+        case Pressed::ad: {
+          GlobalPendingOperations.twinkle_red = 1;
+        } break;
+
+        case Pressed::bd: {
+          GlobalPendingOperations.twinkle_green = 1;
+        } break;
+
+        case Pressed::cd: {
+          GlobalPendingOperations.twinkle_blue = 1;
         } break;
       }
     } break;
