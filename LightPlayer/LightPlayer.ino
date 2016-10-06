@@ -124,7 +124,7 @@ const int8_t MIN_SPEED = -6;     // Playing backward at 5x normal rate
 const int8_t MAX_SPEED = 4;      // Playing forward at 5x normal rate
 
 int8_t frame_len;
-const int8_t MIN_FRAME_LEN = -1; // Each frame lasts 0.5x normal time (25ms shorter)
+const int8_t MIN_FRAME_LEN = 0;  // Each frame lasts 1x normal time (50ms)
 const int8_t MAX_FRAME_LEN = 4;  // Each frame lasts 3x normal time (100ms longer)
 
 const int SKIP_SECONDS = 60;
