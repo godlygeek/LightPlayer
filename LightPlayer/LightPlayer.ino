@@ -4,16 +4,17 @@
 
 #define DEBUG
 
-// ports used:
-// digital 4 - SD card chip select
-// digital 6 - strip of 200 APA106 LEDs
-// digital 11 - SPI (SD card DI)
-// digital 12 - SPI (SD card DO)
-// digital 13 - SPI (SD card CLK)
-// analog 0 - RF remote button D
-// analog 1 - RF remote button C
-// analog 2 - RF remote button B
-// analog 3 - RF remote button A
+enum {
+  SD_CHIP_SELECT = 4,
+  APA106_DATA = 6,
+  SD_MISO = 11,
+  SD_MOSI = 12,
+  SD_CLK = 13,
+  RF_REMOTE_BUTTON_D = A0,
+  RF_REMOTE_BUTTON_C = A1,
+  RF_REMOTE_BUTTON_B = A2,
+  RF_REMOTE_BUTTON_A = A3,
+};
 
 enum class Pressed : uint8_t {
   none = 0,
