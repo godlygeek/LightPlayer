@@ -139,14 +139,17 @@ const int TWINKLE_AMOUNT = 2;
 // File system object.
 SdFat sd;
 
-FatFile root_dir;
-File root_file;
+struct SdContext {
+  FatFile dir;
+  File file;
+};
 
-FatFile rainbows_dir;
-File rainbows_file;
+SdContext RootContext;
+SdContext RainbowContext;
+SdContext *Context = &RootContext;
 
-FatFile *curr_dir = &root_dir;
-File *infile = &root_file;
+#define infile (&(Context->file))
+#define curr_dir (&(Context->dir))
 
 unsigned long startMillis;
 
@@ -198,12 +201,12 @@ void setup()
 
   sd.ls();
 
-  root_dir.openRoot(&sd);
+  RootContext.dir.openRoot(&sd);
   char rainbows_dir_name[9];
   strcpy_P(rainbows_dir_name, PSTR("rainbows"));
-  rainbows_dir.open(&root_dir, rainbows_dir_name, O_READ);
+  RainbowContext.dir.open(&RootContext.dir, rainbows_dir_name, O_READ);
   Serial.println(F("rainbows:"));
-  rainbows_dir.ls();
+  RainbowContext.dir.ls();
 
   nextFile();
   startMillis = millis();
@@ -501,17 +504,13 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
               switch (MacroButtons[2]) {
                 case Pressed::a: {
                   // caa - permanent switch to root directory
-                  if (root_dir.isOpen()) {
-                    curr_dir = &root_dir;
-                    infile = &root_file;
-                  }
+                  Context = &RootContext;
                 } break;
 
                 case Pressed::b: {
                   // cab - permanent switch to rainbows directory
-                  if (rainbows_dir.isOpen()) {
-                    curr_dir = &rainbows_dir;
-                    infile = &rainbows_file;
+                  if (RainbowContext.dir.isOpen()) {
+                    Context = &RainbowContext;
                   }
                 } break;
               }
@@ -534,9 +533,8 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
               switch (MacroButtons[2]) {
                 case Pressed::b: {
                   // dab - temporary switch to rainbows directory
-                  if (rainbows_dir.isOpen()) {
-                    curr_dir = &rainbows_dir;
-                    infile = &rainbows_file;
+                  if (RainbowContext.dir.isOpen()) {
+                    Context = &RainbowContext;
                     CurrentMode = Mode::ROOT_DIR_ON_RELEASE;
                   }
                 } break;
@@ -549,8 +547,7 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
     case Mode::ROOT_DIR_ON_RELEASE: {
       if (button_states == Pressed::none) {
-        curr_dir = &root_dir;
-        infile = &root_file;
+        Context = &RootContext;
         CurrentMode = Mode::NORMAL;
       }
     } break;
