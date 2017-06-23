@@ -208,9 +208,9 @@ void setup()
   nextFile();
   startMillis = millis();
 
-  PCMSK1 = B1111; // Enable interrupts for inputs A0, A1, A2, A3
-  PCIFR  |= bit(PCIF1);   // clear any outstanding interrupts
-  PCICR  |= bit(PCIE1);   // enable pin change interrupts for D8 to D13
+  PCIFR |= bit(PCIF1); // clear any pending port C (A0-A5) interrupts
+  PCMSK1 = B1111; // monitor pins A0 through A3 for changes, but not A4 or A5
+  PCICR |= bit(PCIE1); // begin interrupting for pin changes on port C (A0-A5)
 }
 
 void printPendingOperations(PendingOperations & ops)
