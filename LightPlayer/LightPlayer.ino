@@ -76,7 +76,8 @@ struct PendingOperations
 
 volatile PendingOperations GlobalPendingOperations;
 
-apa106<D, 6>   LEDstrip;
+apa106<D, 6> LEDstrip; // This actually refers to pin 6 of the AVR D port, but
+                       // that happens to map to the Arduino D6 pin.
 rgb frame[200];
 uint8_t brightness = 255;
 uint8_t negative;
@@ -152,15 +153,12 @@ unsigned long startMillis;
 // Serial streams
 ArduinoOutStream cout(Serial);
 
-// SD card chip select
-const int chipSelect = 4;
-
 void setup()
 {
-  pinMode(A0, INPUT_PULLUP);
-  pinMode(A1, INPUT_PULLUP);
-  pinMode(A2, INPUT_PULLUP);
-  pinMode(A3, INPUT_PULLUP);
+  pinMode(RF_REMOTE_BUTTON_D, INPUT_PULLUP);
+  pinMode(RF_REMOTE_BUTTON_C, INPUT_PULLUP);
+  pinMode(RF_REMOTE_BUTTON_B, INPUT_PULLUP);
+  pinMode(RF_REMOTE_BUTTON_A, INPUT_PULLUP);
 
   drawSplashScreen(frame);
   LEDstrip.sendPixels(sizeof(frame) / sizeof(*frame), frame);
@@ -173,7 +171,7 @@ void setup()
   }
 
   cout << F("\nInitializing SD.\n");
-  if (!sd.begin(chipSelect, SPI_FULL_SPEED)) {
+  if (!sd.begin(SD_CHIP_SELECT, SPI_FULL_SPEED)) {
     if (sd.card()->errorCode()) {
       cout << F("SD initialization failed.\n");
       cout << F("errorCode: ") << hex << showbase;
