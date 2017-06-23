@@ -7,6 +7,9 @@
 enum {
   SD_CHIP_SELECT = 4,
   APA106_DATA = 6,
+  SHIFT_REGISTER_CLOCK = 8,
+  SHIFT_REGISTER_LATCH = 9,
+  SHIFT_REGISTER_DATA = 10,
   SD_MISO = 11,
   SD_MOSI = 12,
   SD_CLK = 13,
@@ -142,6 +145,7 @@ SdFat sd;
 struct SdContext {
   FatFile dir;
   File file;
+  uint8_t index;
 };
 
 SdContext RootContext;
@@ -150,6 +154,7 @@ SdContext *Context = &RootContext;
 
 #define infile (&(Context->file))
 #define curr_dir (&(Context->dir))
+#define curr_index (Context->index)
 
 unsigned long startMillis;
 
@@ -162,6 +167,10 @@ void setup()
   pinMode(RF_REMOTE_BUTTON_C, INPUT_PULLUP);
   pinMode(RF_REMOTE_BUTTON_B, INPUT_PULLUP);
   pinMode(RF_REMOTE_BUTTON_A, INPUT_PULLUP);
+
+  pinMode(SHIFT_REGISTER_LATCH, OUTPUT);
+  pinMode(SHIFT_REGISTER_CLOCK, OUTPUT);
+  pinMode(SHIFT_REGISTER_DATA, OUTPUT);
 
   drawSplashScreen(frame);
   LEDstrip.sendPixels(sizeof(frame) / sizeof(*frame), frame);
@@ -554,6 +563,21 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
   }
 }
 
+void updateVideoIndexDisplay()
+{
+  static uint8_t last_index;
+  if (curr_index == last_index) {
+    return;
+  }
+
+  last_index = curr_index;
+  digitalWrite(SHIFT_REGISTER_LATCH, LOW);
+  shiftOut(SHIFT_REGISTER_DATA, SHIFT_REGISTER_CLOCK, LSBFIRST, last_index - 1);
+  digitalWrite(SHIFT_REGISTER_LATCH, HIGH);
+
+  cout << F("\nUpdated video index display to video number ") << (int16_t)last_index;
+}
+
 void nextFile()
 {
   if (infile->isOpen()) {
@@ -564,16 +588,18 @@ void nextFile()
     infile->openNext(curr_dir);
     if (infile->isOpen()) {
       if (!infile->isDir() && !infile->isHidden() && !infile->isSystem()) {
+        ++curr_index;
 #ifdef DEBUG
         char buf[13];
         infile->getName(buf, sizeof(buf));
-        cout << F("\nOpened file: ") << buf;
+        cout << F("\nnext opened file ") << (int16_t)curr_index << F(": ") << buf;
 #endif
         return;
       }
       infile->close();
     } else {
       curr_dir->rewind();
+      curr_index = 0;
     }
   }
 }
@@ -590,7 +616,16 @@ void previousFile()
     if (index < 2) {
       // Advance to past last file of directory.
       dir_t dir;
-      while (curr_dir->readDir(&dir) > 0);
+      curr_index = 0;
+      while (curr_dir->readDir(&dir) > 0) {
+        if (dir.name[0] != DIR_NAME_DELETED
+            && !(dir.attributes & (DIR_ATT_VOLUME_ID | DIR_ATT_DIRECTORY
+                                   | DIR_ATT_HIDDEN | DIR_ATT_SYSTEM)))
+        {
+          ++curr_index;
+        }
+      }
+      ++curr_index;
       continue;
     }
     // position to possible previous file location.
@@ -601,10 +636,11 @@ void previousFile()
 
       if (infile->isOpen()) {
         if (!infile->isDir() && !infile->isHidden() && !infile->isSystem()) {
+          --curr_index;
 #ifdef DEBUG
           char buf[13];
           infile->getName(buf, sizeof(buf));
-          cout << F("\nOpened prev file: ") << buf;
+          cout << F("\nprev opened file ") << (int16_t)curr_index << F(": ") << buf;
 #endif
           return;
         }
@@ -667,6 +703,7 @@ void loop()
   }
 
   handleQueuedCommands();
+  updateVideoIndexDisplay();
   adjustFrameColors();
 
   unsigned long frame_time = 50 + frame_len * 25UL;
