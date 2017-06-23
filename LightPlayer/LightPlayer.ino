@@ -649,6 +649,18 @@ void adjustFrameColors()
   }
 }
 
+void handleQueuedCommands()
+{
+  PendingOperations pending_operations_snapshot;
+  noInterrupts();
+  auto globals = &GlobalPendingOperations;
+  memcpy(&pending_operations_snapshot, globals, sizeof(*globals));
+  memset(globals, 0, sizeof(*globals));
+  interrupts();
+
+  performPendingOperations(pending_operations_snapshot);
+}
+
 void loop()
 {
   if (!readFrame()) {
@@ -657,14 +669,7 @@ void loop()
     return;
   }
 
-  PendingOperations pending_operations;
-  noInterrupts();
-  memcpy(&pending_operations, &GlobalPendingOperations, sizeof(pending_operations));
-  memset(&GlobalPendingOperations, 0, sizeof(GlobalPendingOperations));
-  interrupts();
-
-  performPendingOperations(pending_operations);
-
+  handleQueuedCommands();
   adjustFrameColors();
 
   unsigned long frame_time = 50 + frame_len * 25UL;
