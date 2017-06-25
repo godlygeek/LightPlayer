@@ -43,6 +43,7 @@ enum class Mode : uint8_t {
   COLOR_CEILING,
   COLOR_FLOOR,
   VIDEO_PLAYBACK,
+  CYCLE_BULBS,
   MACRO,
   MISC,
   ROOT_DIR_ON_RELEASE,
@@ -75,6 +76,8 @@ struct PendingOperations
   uint8_t reset_settings;
 
   uint8_t toggle_frame_len;
+
+  uint8_t cycle_bulbs;
 };
 
 volatile PendingOperations GlobalPendingOperations;
@@ -246,6 +249,10 @@ void printPendingOperations(PendingOperations & ops)
   if (ops.toggle_negative)     Serial.print(F("\ntoggle_negative"));
   if (ops.reset_settings)      Serial.print(F("\nreset_settings"));
   if (ops.toggle_frame_len)    Serial.print(F("\ntoggle_frame_len"));
+  if (ops.cycle_bulbs & 64)    Serial.print(F("\ncycle bulb 4"));
+  if (ops.cycle_bulbs & 16)    Serial.print(F("\ncycle bulb 3"));
+  if (ops.cycle_bulbs & 4)     Serial.print(F("\ncycle bulb 2"));
+  if (ops.cycle_bulbs & 1)     Serial.print(F("\ncycle bulb 1"));
 }
 
 void printSettings()
@@ -295,6 +302,22 @@ void twinkleMode(ColorIntensity & high)
   high.ceil = ColorIntensity::MAX;
 }
 
+void cycleBulbs(uint8_t which_bulbs)
+{
+  for (int bulb = 64; bulb > 0; bulb /= 4) {
+    if (which_bulbs & bulb) {
+      uint8_t start = curr_index - 1;
+      // Cycle until the first video such that:
+      // 1) its 0-based index is a multiple of this bulb val
+      // 2) its index is not more than this bulb val from the starting index
+      do {
+        nextFile();
+      } while ((curr_index - 1) % bulb != 0
+               || (bulb < 64 && (curr_index-1) / (bulb*4) != start / (bulb*4)));
+    }
+  }
+}
+
 void performPendingOperations(PendingOperations & ops)
 {
 #ifdef DEBUG
@@ -320,6 +343,7 @@ void performPendingOperations(PendingOperations & ops)
   if (ops.toggle_negative)     negative = !negative;
   if (ops.reset_settings)      resetDefaultSettings();
   if (ops.toggle_frame_len)    frame_len = (frame_len == MAX_FRAME_LEN ? MIN_FRAME_LEN : frame_len+1);
+  if (ops.cycle_bulbs)         cycleBulbs(ops.cycle_bulbs);
 
 #ifdef DEBUG
   if (    ops.cycle_brightness
@@ -340,7 +364,8 @@ void performPendingOperations(PendingOperations & ops)
        || ops.skip_forward
        || ops.toggle_negative
        || ops.reset_settings
-       || ops.toggle_frame_len)
+       || ops.toggle_frame_len
+       || ops.cycle_bulbs)
   {
     printSettings();
   }
@@ -378,6 +403,10 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
         case Pressed::c: {
           CurrentMode = Mode::MACRO;
+        } break;
+
+        case Pressed::ac: {
+          CurrentMode = Mode::CYCLE_BULBS;
         } break;
 
         case Pressed::bc: {
@@ -550,6 +579,35 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
               }
             } break;
           }
+        } break;
+      }
+    } break;
+
+    case Mode::CYCLE_BULBS: {
+      switch (button_states) {
+        case Pressed::a: {
+          GlobalPendingOperations.cycle_bulbs |= 64;
+        } break;
+
+        case Pressed::b: {
+          GlobalPendingOperations.cycle_bulbs |= 16;
+        } break;
+
+        case Pressed::c: {
+          GlobalPendingOperations.cycle_bulbs |= 4;
+        } break;
+
+        case Pressed::d: {
+          GlobalPendingOperations.cycle_bulbs |= 1;
+        } break;
+
+        case Pressed::ac:
+        case Pressed::none: {
+          // Do nothing
+        } break;
+
+        default: {
+          CurrentMode = Mode::NORMAL;
         } break;
       }
     } break;
