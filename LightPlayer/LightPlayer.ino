@@ -2,7 +2,7 @@
 #include <SdFat.h>
 #include <FAB_LED.h>
 
-#define DEBUG
+//#define DEBUG
 
 enum {
   SD_CHIP_SELECT = 4,
