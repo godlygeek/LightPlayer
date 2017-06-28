@@ -386,6 +386,10 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
         } break;
 
         case Pressed::b: {
+          GlobalPendingOperations.next_video = 1;
+        } break;
+
+        case Pressed::d: {
           GlobalPendingOperations.skip_forward = 1;
         } break;
 
@@ -411,10 +415,6 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
         case Pressed::bc: {
           CurrentMode = Mode::MISC;
-        } break;
-
-        case Pressed::d: {
-          GlobalPendingOperations.next_video = 1;
         } break;
       }
     } break;
