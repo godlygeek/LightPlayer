@@ -413,7 +413,7 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
           CurrentMode = Mode::MISC;
         } break;
 
-        case Pressed::abcd: {
+        case Pressed::d: {
           GlobalPendingOperations.next_video = 1;
         } break;
       }
@@ -421,7 +421,7 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
     case Mode::COLOR_CEILING: {
       switch (button_states) {
-        case Pressed::d: {
+        case Pressed::abcd: {
           CurrentMode = Mode::NORMAL;
         } break;
 
@@ -442,7 +442,7 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
     case Mode::COLOR_FLOOR: {
       switch (button_states) {
-        case Pressed::d: {
+        case Pressed::abcd: {
           CurrentMode = Mode::NORMAL;
         } break;
 
@@ -462,7 +462,7 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
     case Mode::VIDEO_PLAYBACK: {
       switch (button_states) {
-        case Pressed::d: {
+        case Pressed::abcd: {
           CurrentMode = Mode::NORMAL;
         } break;
 
@@ -486,7 +486,7 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
           GlobalPendingOperations.next_video = 1;
         } break;
 
-        case Pressed::abcd: {
+        case Pressed::d: {
           GlobalPendingOperations.skip_forward = 1;
         } break;
       }
@@ -494,7 +494,7 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
     case Mode::MISC: {
       switch (button_states) {
-        case Pressed::d: {
+        case Pressed::abcd: {
           CurrentMode = Mode::NORMAL;
         } break;
 
@@ -527,6 +527,12 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
       static Pressed MacroButtons[3];
       static int8_t MacroButtonCount = 0;
+
+      if (button_states == Pressed::abcd) {
+        MacroButtonCount = 0;
+        CurrentMode = Mode::NORMAL;
+        break;
+      }
 
       MacroButtons[MacroButtonCount++] = button_states;
       if ((MacroButtonCount %= 3) != 0) {
@@ -585,6 +591,10 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
     case Mode::CYCLE_BULBS: {
       switch (button_states) {
+        case Pressed::abcd: {
+          CurrentMode = Mode::NORMAL;
+        } break;
+
         case Pressed::a: {
           GlobalPendingOperations.cycle_bulbs |= 64;
         } break;
@@ -599,15 +609,6 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
 
         case Pressed::d: {
           GlobalPendingOperations.cycle_bulbs |= 1;
-        } break;
-
-        case Pressed::ac:
-        case Pressed::none: {
-          // Do nothing
-        } break;
-
-        default: {
-          CurrentMode = Mode::NORMAL;
         } break;
       }
     } break;
