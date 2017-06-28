@@ -389,6 +389,10 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
           GlobalPendingOperations.next_video = 1;
         } break;
 
+        case Pressed::c: {
+          CurrentMode = Mode::MACRO;
+        } break;
+
         case Pressed::d: {
           GlobalPendingOperations.skip_forward = 1;
         } break;
@@ -397,24 +401,20 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
           CurrentMode = Mode::COLOR_CEILING;
         } break;
 
-        case Pressed::cd: {
-          CurrentMode = Mode::COLOR_FLOOR;
+        case Pressed::ac: {
+          CurrentMode = Mode::CYCLE_BULBS;
         } break;
 
         case Pressed::ad: {
           CurrentMode = Mode::VIDEO_PLAYBACK;
         } break;
 
-        case Pressed::c: {
-          CurrentMode = Mode::MACRO;
-        } break;
-
-        case Pressed::ac: {
-          CurrentMode = Mode::CYCLE_BULBS;
-        } break;
-
         case Pressed::bc: {
           CurrentMode = Mode::MISC;
+        } break;
+
+        case Pressed::cd: {
+          CurrentMode = Mode::COLOR_FLOOR;
         } break;
       }
     } break;
@@ -478,16 +478,16 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
           GlobalPendingOperations.toggle_pause = 1;
         } break;
 
+        case Pressed::d: {
+          GlobalPendingOperations.skip_forward = 1;
+        } break;
+
         case Pressed::ac: {
           GlobalPendingOperations.prev_video = 1;
         } break;
 
         case Pressed::bd: {
           GlobalPendingOperations.next_video = 1;
-        } break;
-
-        case Pressed::d: {
-          GlobalPendingOperations.skip_forward = 1;
         } break;
       }
     } break;
