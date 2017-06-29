@@ -634,7 +634,9 @@ void updateVideoIndexDisplay()
   shiftOut(SHIFT_REGISTER_DATA, SHIFT_REGISTER_CLOCK, LSBFIRST, last_index - 1);
   digitalWrite(SHIFT_REGISTER_LATCH, HIGH);
 
+#ifdef DEBUG
   cout << F("\nUpdated video index display to video number ") << (int16_t)last_index;
+#endif
 }
 
 void nextFile()
