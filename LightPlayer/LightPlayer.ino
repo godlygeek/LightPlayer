@@ -25,7 +25,7 @@ uint8_t g_hi = 255;
 uint8_t b_lo = 0;
 uint8_t b_hi = 255;
 
-int8_t speed;
+int8_t frame_skip;
 int8_t frame_len;
 
 //------------------------------------------------------------------------------
@@ -176,8 +176,8 @@ void previousFile()
 
 bool readFrame()
 {
-  int32_t seek_offset = (int32_t)speed * sizeof(frame);
-  if (speed < 0 && infile->curPosition() < -seek_offset) {
+  int32_t seek_offset = (int32_t)frame_skip * sizeof(frame);
+  if (frame_skip < 0 && infile->curPosition() < -seek_offset) {
     // Going backwards, and reached the start of this file.
     previousFile();
     // Successfully opened previous file - start from the end.
