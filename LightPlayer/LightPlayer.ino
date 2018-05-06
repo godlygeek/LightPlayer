@@ -26,7 +26,7 @@ uint8_t b_lo = 0;
 uint8_t b_hi = 255;
 
 int8_t frame_skip;
-int8_t frame_len;
+uint8_t frame_stretch;
 
 //------------------------------------------------------------------------------
 // File system object.
@@ -208,7 +208,7 @@ void loop()
 
   adjustFrameColors();
 
-  unsigned long frame_time = 50 + frame_len * 25UL;
+  unsigned long frame_time = 50UL + frame_stretch;
   while (millis() - startMillis < frame_time) {
     // busy loop until its time to paint the lights
   }
