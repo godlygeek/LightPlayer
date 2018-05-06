@@ -7,9 +7,6 @@
 enum {
   SD_CHIP_SELECT = 4,
   APA106_DATA = 6,
-  SHIFT_REGISTER_CLOCK = 8,
-  SHIFT_REGISTER_LATCH = 9,
-  SHIFT_REGISTER_DATA = 10,
   SD_MISO = 11,
   SD_MOSI = 12,
   SD_CLK = 13,
@@ -170,10 +167,6 @@ void setup()
   pinMode(RF_REMOTE_BUTTON_C, INPUT_PULLUP);
   pinMode(RF_REMOTE_BUTTON_B, INPUT_PULLUP);
   pinMode(RF_REMOTE_BUTTON_A, INPUT_PULLUP);
-
-  pinMode(SHIFT_REGISTER_LATCH, OUTPUT);
-  pinMode(SHIFT_REGISTER_CLOCK, OUTPUT);
-  pinMode(SHIFT_REGISTER_DATA, OUTPUT);
 
   drawSplashScreen(frame);
   LEDstrip.sendPixels(sizeof(frame) / sizeof(*frame), frame);
@@ -622,23 +615,6 @@ ISR(PCINT1_vect) // handle pin change interrupt for A0 to A5
   }
 }
 
-void updateVideoIndexDisplay()
-{
-  static uint8_t last_index;
-  if (curr_index == last_index) {
-    return;
-  }
-
-  last_index = curr_index;
-  digitalWrite(SHIFT_REGISTER_LATCH, LOW);
-  shiftOut(SHIFT_REGISTER_DATA, SHIFT_REGISTER_CLOCK, LSBFIRST, last_index - 1);
-  digitalWrite(SHIFT_REGISTER_LATCH, HIGH);
-
-#ifdef DEBUG
-  cout << F("\nUpdated video index display to video number ") << (int16_t)last_index;
-#endif
-}
-
 void nextFile()
 {
   if (infile->isOpen()) {
@@ -764,7 +740,6 @@ void loop()
   }
 
   handleQueuedCommands();
-  updateVideoIndexDisplay();
   adjustFrameColors();
 
   unsigned long frame_time = 50 + frame_len * 25UL;
