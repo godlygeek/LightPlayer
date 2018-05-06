@@ -198,6 +198,17 @@ void adjustFrameColors()
   }
 }
 
+void sendFrameToLights()
+{
+  unsigned long frame_time = 50UL + frame_stretch;
+  while (millis() - startMillis < frame_time) {
+    // busy loop until its time to paint the lights
+  }
+  startMillis += frame_time;
+
+  LEDstrip.sendPixels(sizeof(frame) / sizeof(*frame), frame);
+}
+
 void loop()
 {
   if (!readFrame()) {
@@ -207,12 +218,5 @@ void loop()
   }
 
   adjustFrameColors();
-
-  unsigned long frame_time = 50UL + frame_stretch;
-  while (millis() - startMillis < frame_time) {
-    // busy loop until its time to paint the lights
-  }
-  startMillis += frame_time;
-
-  LEDstrip.sendPixels(sizeof(frame) / sizeof(*frame), frame);
+  sendFrameToLights();
 }
