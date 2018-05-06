@@ -159,16 +159,8 @@ void previousFile()
     if (index < 2) {
       // Advance to past last file of directory.
       dir_t dir;
-      curr_index = 0;
-      while (curr_dir->readDir(&dir) > 0) {
-        if (dir.name[0] != DIR_NAME_DELETED
-            && !(dir.attributes & (DIR_ATT_VOLUME_ID | DIR_ATT_DIRECTORY
-                                   | DIR_ATT_HIDDEN | DIR_ATT_SYSTEM)))
-        {
-          ++curr_index;
-        }
-      }
-      ++curr_index;
+      while (curr_dir->readDir(&dir) > 0);
+      curr_index = max_index + 1;
       continue;
     }
     // position to possible previous file location.
