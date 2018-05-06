@@ -36,6 +36,7 @@ struct SdContext {
   FatFile dir;
   File file;
   uint8_t index;
+  uint8_t max_index;
 };
 
 SdContext RootContext;
@@ -45,6 +46,7 @@ SdContext *Context = &RootContext;
 #define infile (&(Context->file))
 #define curr_dir (&(Context->dir))
 #define curr_index (Context->index)
+#define max_index (Context->max_index)
 
 unsigned long startMillis;
 
@@ -95,10 +97,27 @@ void setup()
   char rainbows_dir_name[9];
   strcpy_P(rainbows_dir_name, PSTR("rainbows"));
   RainbowContext.dir.open(&RootContext.dir, rainbows_dir_name, O_READ);
-  Serial.println(F("rainbows:"));
-  RainbowContext.dir.ls();
 
-  nextFile();
+#ifdef DEBUG
+  Serial.println(F("enumerating rainbows:"));
+#endif
+  Context = &RainbowContext;
+  max_index = 0;
+  while (curr_index >= max_index) {
+    max_index = curr_index;
+    nextFile();
+  }
+
+#ifdef DEBUG
+  Serial.println(F("enumerating root fs:"));
+#endif
+  Context = &RootContext;
+  max_index = 0;
+  while (curr_index >= max_index) {
+    max_index = curr_index;
+    nextFile();
+  }
+
   startMillis = millis();
 }
 
