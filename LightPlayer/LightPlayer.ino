@@ -15,46 +15,15 @@ enum {
 apa106<D, 6> LEDstrip; // This actually refers to pin 6 of the AVR D port, but
                        // that happens to map to the Arduino D6 pin.
 rgb frame[200];
-uint8_t brightness = 255;
-uint8_t negative;
 
-struct ColorIntensity
-{
-  enum { MIN = 0, MAX = 8 };
+uint8_t r_lo = 0;
+uint8_t r_hi = 255;
 
-  uint8_t floor = MIN;
-  uint8_t ceil = MAX;
+uint8_t g_lo = 0;
+uint8_t g_hi = 255;
 
-  void lowerCeil()
-  {
-    ceil = (ceil == floor ? MAX : ceil - 1);
-  }
-
-  void raiseFloor()
-  {
-    floor = (ceil == floor ? MIN : floor + 1);
-  }
-
-  void reset()
-  {
-    floor = MIN;
-    ceil = MAX;
-  }
-
-  uint8_t minBrightness()
-  {
-    return map(floor, MIN, MAX, negative * brightness, !negative * brightness);
-  }
-
-  uint8_t maxBrightness()
-  {
-    return map(ceil, MIN, MAX, negative * brightness, !negative * brightness);
-  }
-};
-
-ColorIntensity r_intensity;
-ColorIntensity g_intensity;
-ColorIntensity b_intensity;
+uint8_t b_lo = 0;
+uint8_t b_hi = 255;
 
 int8_t speed;
 int8_t frame_len;
@@ -222,18 +191,10 @@ bool readFrame()
 
 void adjustFrameColors()
 {
-  const uint8_t r_min_brightness = r_intensity.minBrightness();
-  const uint8_t g_min_brightness = g_intensity.minBrightness();
-  const uint8_t b_min_brightness = b_intensity.minBrightness();
-
-  const uint8_t r_max_brightness = r_intensity.maxBrightness();
-  const uint8_t g_max_brightness = g_intensity.maxBrightness();
-  const uint8_t b_max_brightness = b_intensity.maxBrightness();
-
   for (auto & f : frame) {
-    f.r = map(f.r, 0, 255, r_min_brightness, r_max_brightness);
-    f.g = map(f.g, 0, 255, g_min_brightness, g_max_brightness);
-    f.b = map(f.b, 0, 255, b_min_brightness, b_max_brightness);
+    f.r = map(f.r, 0, 255, r_lo, r_hi);
+    f.g = map(f.g, 0, 255, g_lo, g_hi);
+    f.b = map(f.b, 0, 255, b_lo, b_hi);
   }
 }
 
