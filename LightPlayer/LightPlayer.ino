@@ -102,8 +102,6 @@ void setup()
   cout << F("\nCard successfully initialized.\n");
   cout << endl;
 
-  sd.ls();
-
   RootContext.dir.openRoot(&sd);
 
   char rainbows_dir_name[9];
