@@ -195,19 +195,22 @@ void previousFile()
   }
 }
 
-bool readFrame()
+void readNextFrame()
 {
-  int32_t seek_offset = (int32_t)frame_skip * sizeof(frame);
-  if (frame_skip < 0 && infile->curPosition() < -seek_offset) {
-    // Going backwards, and reached the start of this file.
-    previousFile();
-    // Successfully opened previous file - start from the end.
-    infile->seekEnd();
+  // seekCur will fail if there aren't enough bytes left in the file.
+  // Because our files and offsets are always under 2GB and unsigned underflow
+  // is defined behavior, this is also true when seeking backwards.
+  while (!infile->seekCur((int32_t)frame_skip * sizeof(frame))
+          || infile->read(frame, sizeof(frame)) != sizeof(frame))
+  {
+    // Reached the end of a file (or a read failed); move to the next file.
+    if (frame_skip < 0) {
+      previousFile();
+      infile->seekEnd();
+    } else {
+      nextFile();
+    }
   }
-  if (!infile->seekCur(seek_offset)) {
-    return false;
-  }
-  return infile->read(frame, sizeof(frame)) == sizeof(frame);
 }
 
 void adjustFrameColors()
@@ -364,12 +367,7 @@ void sendFrameToLights()
 
 void loop()
 {
-  if (!readFrame()) {
-    nextFile();
-    startMillis = millis();
-    return;
-  }
-
+  readNextFrame();
   readCommandByte();
   sendAdvertisement();
   adjustFrameColors();
