@@ -303,32 +303,32 @@ static int isHexChar(char c)
   return 0;
 }
 
-void readCommandByte()
+void processSerialInput()
 {
-  if (!Serial.available()) return;
+  while (Serial.available()) {
+    int next_byte = Serial.read();
 
-  int next_byte = Serial.read();
+    if (    (rxbuf_idx == 0 && isCommandChar(next_byte))
+         || (1 <= rxbuf_idx && rxbuf_idx <= 4 && isHexChar(next_byte))
+         || (rxbuf_idx == 5 && next_byte == '\n'))
+    {
+      rxbuf[rxbuf_idx++] = next_byte;
+    }
+    else
+    {
+      // invalid character in the current position; reset
+      rxbuf_idx = 0;
+    }
 
-  if (    (rxbuf_idx == 0 && isCommandChar(next_byte))
-       || (1 <= rxbuf_idx && rxbuf_idx <= 4 && isHexChar(next_byte))
-       || (rxbuf_idx == 5 && next_byte == '\n'))
-  {
-    rxbuf[rxbuf_idx++] = next_byte;
-  }
-  else
-  {
-    // invalid character in the current position; reset
-    rxbuf_idx = 0;
-  }
-
-  if (rxbuf_idx == 6) {
-    const char command = rxbuf[0];
-    const char param1[3] = {rxbuf[1], rxbuf[2], '\0'};
-    const char param2[3] = {rxbuf[3], rxbuf[4], '\0'};
-    handleSerialCommand(command,
-                        strtol(param1, 0, 16),
-                        strtol(param2, 0, 16));
-    rxbuf_idx = 0;
+    if (rxbuf_idx == 6) {
+      const char command = rxbuf[0];
+      const char param1[3] = {rxbuf[1], rxbuf[2], '\0'};
+      const char param2[3] = {rxbuf[3], rxbuf[4], '\0'};
+      handleSerialCommand(command,
+                          strtol(param1, 0, 16),
+                          strtol(param2, 0, 16));
+      rxbuf_idx = 0;
+    }
   }
 }
 
@@ -368,7 +368,7 @@ void sendFrameToLights()
 void loop()
 {
   readNextFrame();
-  readCommandByte();
+  processSerialInput();
   sendAdvertisement();
   adjustFrameColors();
   sendFrameToLights();
