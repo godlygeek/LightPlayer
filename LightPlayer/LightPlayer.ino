@@ -76,7 +76,6 @@ void setup()
     SysCall::yield();
   }
 
-  cout << F("\nInitializing SD.\n");
   if (!sd.begin(SD_CHIP_SELECT, SPI_FULL_SPEED)) {
     if (sd.card()->errorCode()) {
       cout << F("SD initialization failed.\n");
@@ -87,7 +86,6 @@ void setup()
       return;
     }
 
-    cout << F("\nCard successfully initialized.\n");
     if (sd.vol()->fatType() == 0) {
       cout << F("Can't find a valid FAT16/FAT32 partition.\n");
       return;
@@ -99,8 +97,6 @@ void setup()
     cout << F("Can't determine error type\n");
     return;
   }
-  cout << F("\nCard successfully initialized.\n");
-  cout << endl;
 
   RootContext.dir.openRoot(&sd);
 
