@@ -71,11 +71,6 @@ void setup()
 
   Serial.begin(300);
 
-  // Wait for USB Serial
-  while (!Serial) {
-    SysCall::yield();
-  }
-
   if (!sd.begin(SD_CHIP_SELECT, SPI_FULL_SPEED)) {
     if (sd.card()->errorCode()) {
       cout << F("SD initialization failed.\n");
