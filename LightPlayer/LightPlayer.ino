@@ -64,6 +64,29 @@ unsigned long lastAdvertisementSecs;
 // Serial streams
 ArduinoOutStream cout(Serial);
 
+static void setupFrameTimer()
+{
+  int ms_per_frame = 50 + frame_stretch;
+
+  // Disable any timer interrupts
+  TIMSK1 = 0;
+
+  // Set up timer mode
+  TCCR1A = 0;
+  TCCR1B = (1 << WGM12) // CTC mode - Count to a given value, then set a flag
+         | (1 << CS12); // prescaler of 256, for ticks at 62.5 kHz;
+  TCCR1C = 0;
+
+  // timer 1 will begin at 0
+  TCNT1 = 0;
+
+  // and reset (setting a flag) after this many ticks:
+  OCR1A = ms_per_frame * 62500UL / 1000 - 1;
+
+  // Reset any pending flags
+  TIFR1 = 0xFF;
+}
+
 void setup()
 {
   drawSplashScreen(frame);
@@ -119,7 +142,7 @@ void setup()
     nextFile();
   }
 
-  startMillis = millis();
+  setupFrameTimer();
 }
 
 void nextFile()
@@ -261,6 +284,7 @@ void handleSerialCommand(char cmd, uint8_t param1, uint8_t param2)
     case 'S':
       frame_skip = (param1 < 128 ? param1 : param1 - 256);
       frame_stretch = param2;
+      setupFrameTimer();
       break;
     case 'V':
       setDirectory(param1);
@@ -347,11 +371,10 @@ void sendAdvertisement()
 
 void sendFrameToLights()
 {
-  unsigned long frame_time = 50UL + frame_stretch;
-  while (millis() - startMillis < frame_time) {
+  while (!(TIFR1 & (1 << OCF1A))) {
     // busy loop until its time to paint the lights
   }
-  startMillis += frame_time;
+  TIFR1 = (1 << OCF1A); // clear the flag
 
   LEDstrip.sendPixels(sizeof(frame) / sizeof(*frame), frame);
 }
