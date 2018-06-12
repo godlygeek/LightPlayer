@@ -251,7 +251,7 @@ void setDirectory(uint8_t dir)
 
 void selectVideo(uint8_t video)
 {
-  if (video <= max_index) {
+  if (video < max_index) {
     while (curr_index - 1 != video) {
       nextFile();
     }
