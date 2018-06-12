@@ -255,7 +255,6 @@ void selectVideo(uint8_t video)
     while (curr_index - 1 != video) {
       nextFile();
     }
-    seekToSecond(0);
   }
 }
 
