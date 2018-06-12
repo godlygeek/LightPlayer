@@ -14,7 +14,7 @@ enum {
 
 const long FRAMES_PER_SEC = 20L;
 
-char rxbuf[6];
+char rxbuf[14];
 uint8_t rxbuf_idx;
 
 char status_string[27];
@@ -265,48 +265,46 @@ void seekToSecond(uint16_t second)
   infile->seekSet(offset);
 }
 
-void handleSerialCommand(char cmd, uint8_t param1, uint8_t param2)
+void handleSerialCommand(int nparams)
 {
-  switch (cmd)
-  {
-    case 'R':
-      r_lo = param1;
-      r_hi = param2;
+  uint8_t params[6];
+
+  for (int i = nparams; i > 0; --i) {
+    char *p = rxbuf + 2 * i - 1;
+    params[i - 1] = strtol(p, 0, 16);
+    *p = 0;
+  }
+
+  switch (rxbuf[0]) {
+    case 'C':
+      r_lo = params[0];
+      r_hi = params[1];
+      g_lo = params[2];
+      g_hi = params[3];
+      b_lo = params[4];
+      b_hi = params[5];
       break;
-    case 'G':
-      g_lo = param1;
-      g_hi = param2;
-      break;
-    case 'B':
-      b_lo = param1;
-      b_hi = param2;
-      break;
+
     case 'S':
-      frame_skip = (param1 < 128 ? param1 : param1 - 256);
-      frame_stretch = param2;
+      frame_skip = params[0] - 128;
+      frame_stretch = params[1];
       setupFrameTimer();
       break;
+
     case 'V':
-      setDirectory(param1);
-      selectVideo(param2);
-      break;
-    case 'P':
-      uint16_t param = (param1 << 8) + param2;
-      seekToSecond(param);
+      setDirectory(params[0]);
+      selectVideo(params[1]);
+      seekToSecond((params[2] << 8) + params[3]);
       break;
   }
 }
 
-static int isCommandChar(char c)
+int numParams(char c)
 {
   switch (c) {
-    case 'R':
-    case 'G':
-    case 'B':
-    case 'S':
-    case 'V':
-    case 'P':
-      return 1;
+    case 'C': return 6;
+    case 'S': return 2;
+    case 'V': return 4;
   }
   return 0;
 }
@@ -322,26 +320,22 @@ void processSerialInput()
 {
   while (Serial.available()) {
     int next_byte = Serial.read();
+    int numhex = 2 * (rxbuf_idx ? numParams(rxbuf[0]) : numParams(next_byte));
 
-    if (    (rxbuf_idx == 0 && isCommandChar(next_byte))
-         || (1 <= rxbuf_idx && rxbuf_idx <= 4 && isHexChar(next_byte))
-         || (rxbuf_idx == 5 && next_byte == '\n'))
+    if (    (rxbuf_idx == 0 && numhex)
+         || (1 <= rxbuf_idx && rxbuf_idx <= numhex && isHexChar(next_byte)))
     {
       rxbuf[rxbuf_idx++] = next_byte;
+    }
+    else if (rxbuf_idx > numhex && next_byte == '\n')
+    {
+      rxbuf[rxbuf_idx++] = 0;
+      handleSerialCommand(numhex / 2);
+      rxbuf_idx = 0;
     }
     else
     {
       // invalid character in the current position; reset
-      rxbuf_idx = 0;
-    }
-
-    if (rxbuf_idx == 6) {
-      const char command = rxbuf[0];
-      const char param1[3] = {rxbuf[1], rxbuf[2], '\0'};
-      const char param2[3] = {rxbuf[3], rxbuf[4], '\0'};
-      handleSerialCommand(command,
-                          strtol(param1, 0, 16),
-                          strtol(param2, 0, 16));
       rxbuf_idx = 0;
     }
   }
