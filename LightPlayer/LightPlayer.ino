@@ -353,7 +353,7 @@ void populateAdvertisement()
   sprintf_P(status_string,
             PSTR("%02x%02x%02x%02x%02x%02x%02x%02x%04x%02x%02x%02x"),
             r_lo, r_hi, g_lo, g_hi, b_lo, b_hi,
-            (uint8_t)frame_skip, frame_stretch,
+            frame_skip + 128, frame_stretch,
             seconds,
             directory, curr_index - 1, video);
 }
