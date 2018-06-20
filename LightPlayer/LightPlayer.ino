@@ -92,7 +92,7 @@ void setup()
   drawSplashScreen(frame);
   LEDstrip.sendPixels(sizeof(frame) / sizeof(*frame), frame);
 
-  Serial.begin(300);
+  Serial.begin(1200);
 
   if (!sd.begin(SD_CHIP_SELECT, SPI_FULL_SPEED)) {
     if (sd.card()->errorCode()) {
