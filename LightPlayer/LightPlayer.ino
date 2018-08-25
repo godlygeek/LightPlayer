@@ -127,6 +127,7 @@ void setup()
 #endif
   Context = &RainbowContext;
   max_index = 0;
+  curr_dir->rewind();
   while (curr_index >= max_index) {
     max_index = curr_index;
     nextFile();
@@ -137,6 +138,7 @@ void setup()
 #endif
   Context = &RootContext;
   max_index = 0;
+  curr_dir->rewind();
   while (curr_index >= max_index) {
     max_index = curr_index;
     nextFile();
