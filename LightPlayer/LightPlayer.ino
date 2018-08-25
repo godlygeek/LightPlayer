@@ -249,10 +249,11 @@ void setDirectory(uint8_t dir)
   }
 }
 
-void selectVideo(uint8_t video)
+void selectVideo(uint8_t new_video)
 {
-  if (video < max_index) {
-    while (curr_index - 1 != video) {
+  if (new_video < max_index) {
+    video = new_video;
+    while (curr_index - 1 != new_video) {
       nextFile();
     }
   }
